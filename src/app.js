@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const app = express();
 const cors = require("cors");
@@ -5,9 +6,10 @@ const axios = require("axios");
 
 app.use(cors());
 
-const API_KEY = "9rI7UTw5.0i8CMpYCbDyrKi8x4rhuV0jC9CSAIpYa";
+const LicenseSpring_API_KEY = process.env.LicenseSpring_API_KEY;
+
 const commonHeaders = {
-  Authorization: `Api-Key ${API_KEY}`,
+  Authorization: `Api-Key ${LicenseSpring_API_KEY}`,
   "Content-Type": "application/json",
 };
 
