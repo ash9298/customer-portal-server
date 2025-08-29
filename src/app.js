@@ -5,9 +5,9 @@ const cors = require("cors");
 const axios = require("axios");
 
 app.use(cors());
+app.use(express.json());
 
-const LicenseSpring_API_KEY = process.env.LicenseSpring_API_KEY;
-
+const LicenseSpring_API_KEY = process.env.LS_API_KEY;
 const commonHeaders = {
   Authorization: `Api-Key ${LicenseSpring_API_KEY}`,
   "Content-Type": "application/json",
@@ -111,4 +111,50 @@ app.use("/test", (req, res) => {
 
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
+});
+
+app.post("/signup", async (req, res) => {
+  console.log(req);
+  try {
+    const response = await axios.post(
+      "https://api.leapwork.dev/leapwork-tracker-dev/SignupUser",
+      req.body,
+      {
+        headers: {
+          "Ocp-Apim-Subscription-Key": "d083be5bb7434be39303042ac886a032",
+        },
+      }
+    );
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("Error saving user:", error.message);
+    res.status(error.response?.status || 500).json({
+      error: "Failed to save user to db",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/login", async (req, res) => {
+  console.log(req);
+  try {
+    const response = await axios.post(
+      "https://api.leapwork.dev/leapwork-tracker-dev/LoginUser",
+      req.body,
+      {
+        headers: {
+          "Ocp-Apim-Subscription-Key": "d083be5bb7434be39303042ac886a032",
+        },
+      }
+    );
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("Error authenticating user:", error.message);
+    res.status(error.response?.status || 500).json({
+      error: "Failed to authenticate user",
+      details: error.message,
+    });
+  }
 });
