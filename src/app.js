@@ -3,9 +3,18 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const axios = require("axios");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
 
 const LicenseSpring_API_KEY = process.env.LS_API_KEY;
 const commonHeaders = {
@@ -137,7 +146,7 @@ app.post("/signup", async (req, res) => {
 });
 
 app.post("/login", async (req, res) => {
-  console.log(req);
+  console.log("login", req.body);
   try {
     const response = await axios.post(
       "https://api.leapwork.dev/leapwork-tracker-dev/LoginUser",
@@ -146,10 +155,29 @@ app.post("/login", async (req, res) => {
         headers: {
           "Ocp-Apim-Subscription-Key": "d083be5bb7434be39303042ac886a032",
         },
+        withCredentials: true,
       }
     );
 
-    res.json(response.data);
+    const { accessToken, refreshToken } = response.data;
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: true, // use true in production (HTTPS)
+      sameSite: "strict",
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+    res.json({
+      status: 200,
+      message: "Login successful",
+      ...response.data,
+    });
   } catch (error) {
     console.error("Error authenticating user:", error.message);
     res.status(error.response?.status || 500).json({
@@ -157,4 +185,85 @@ app.post("/login", async (req, res) => {
       details: error.message,
     });
   }
+});
+
+app.get("/profile", async (req, res) => {
+  try {
+    console.log("Access Token:", req.cookies);
+    const { accessToken } = req.cookies;
+
+    if (!accessToken) {
+      return res.status(401).json({ error: "No access token" });
+    }
+
+    // Call Azure profile API with token
+    const response = await axios.get(
+      "https://api.leapwork.dev/leapwork-tracker-dev/Profile",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Ocp-Apim-Subscription-Key": "d083be5bb7434be39303042ac886a032",
+        },
+      }
+    );
+    console.log("response.data", response.data);
+    res.json(response.data);
+  } catch (error) {
+    console.error("Error fetching profile:", error.message);
+    res.status(error.response?.status || 500).json({
+      error: "Failed to fetch profile",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/refresh", async (req, res) => {
+  try {
+    const { refreshToken } = req.cookies;
+    if (!refreshToken) {
+      return res.status(401).json({ error: "No refresh token" });
+    }
+
+    // Call Azure refresh API
+    const response = await axios.post(
+      "https://api.leapwork.dev/leapwork-tracker-dev/RefreshToken",
+      { refreshToken },
+      {
+        headers: {
+          "Ocp-Apim-Subscription-Key": "d083be5bb7434be39303042ac886a032",
+        },
+      }
+    );
+
+    const { accessToken, refreshToken: newRefreshToken } = response.data;
+
+    // Update cookies
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ message: "Tokens refreshed" });
+  } catch (error) {
+    console.error("Error refreshing token:", error.message);
+    res.status(error.response?.status || 500).json({
+      error: "Failed to refresh token",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/logout", (req, res) => {
+  res.clearCookie("accessToken");
+  res.clearCookie("refreshToken");
+  res.json({ message: "Logged out" });
 });
